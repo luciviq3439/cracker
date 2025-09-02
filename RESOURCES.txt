@@ -1,0 +1,137 @@
+   [DllImport("kernel32.dll", SetLastError = true)]
+   private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+
+   [DllImport("kernel32.dll", SetLastError = true)]
+   private static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
+
+   [DllImport("kernel32.dll", SetLastError = true)]
+   private static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, uint nSize, out IntPtr lpNumberOfBytesWritten);
+
+   [DllImport("kernel32.dll", SetLastError = true)]
+   private static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, out IntPtr lpThreadId);
+
+   [DllImport("kernel32.dll", SetLastError = true)]
+   private static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+
+   [DllImport("kernel32.dll", SetLastError = true)]
+   private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+   [DllImport("ntdll.dll", ExactSpelling = true)]
+   private static extern int NtSuspendProcess(IntPtr processHandle);
+
+   [DllImport("ntdll.dll", ExactSpelling = true)]
+   private static extern int NtResumeProcess(IntPtr processHandle);
+
+   [DllImport("kernel32.dll")]
+   private static extern bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint dwFreeType);
+
+   [DllImport("kernel32.dll")]
+   private static extern bool CloseHandle(IntPtr hHandle);
+
+   [DllImport("kernel32.dll")]
+   private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+
+   public static void InjectDll(int processId, string dllPath)
+   {
+       IntPtr intPtr = OpenProcess(2035711u, bInheritHandle: false, processId);
+       if (intPtr == IntPtr.Zero)
+       {
+           throw new Exception("Failed eror typre (0987).");
+       }
+       IntPtr intPtr2 = VirtualAllocEx(intPtr, IntPtr.Zero, (uint)((dllPath.Length + 1) * Marshal.SizeOf(typeof(char))), 4096u, 4u);
+       if (intPtr2 == IntPtr.Zero)
+       {
+           throw new Exception("Failed eror typre (7895).");
+       }
+       byte[] bytes = Encoding.ASCII.GetBytes(dllPath);
+       if (!WriteProcessMemory(intPtr, intPtr2, bytes, (uint)bytes.Length, out var _))
+       {
+           throw new Exception("Failed error type (8759).");
+       }
+       IntPtr lpThreadId;
+       IntPtr intPtr3 = CreateRemoteThread(lpStartAddress: GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA"), hProcess: intPtr, lpThreadAttributes: IntPtr.Zero, dwStackSize: 0u, lpParameter: intPtr2, dwCreationFlags: 0u, lpThreadId: out lpThreadId);
+       if (intPtr3 == IntPtr.Zero)
+       {
+           throw new Exception("Failed error type (8493)");
+       }
+       WaitForSingleObject(intPtr3, uint.MaxValue);
+       VirtualFreeEx(intPtr, intPtr2, 0u, 32768u);
+       CloseHandle(intPtr3);
+       CloseHandle(intPtr);
+   }
+
+   private static void ExtractEmbeddedResource(string resourceName, string outputPath)
+   {
+       using Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName);
+       if (stream == null)
+       {
+           throw new ArgumentException("Resource '" + resourceName + "' not found.");
+       }
+       using FileStream fileStream = new FileStream(outputPath, FileMode.Create);
+       byte[] array = new byte[stream.Length];
+       stream.Read(array, 0, array.Length);
+       fileStream.Write(array, 0, array.Length);
+   }
+
+
+   private void LoadProcesses()
+   {
+       ((ComboBox)(object)processListComboBox).Items.Clear();
+       Process[] processes = Process.GetProcesses();
+       foreach (Process item in processes)
+       {
+           try
+           {
+               ((ComboBox)(object)processListComboBox).Items.Add(item);
+           }
+           catch
+           {
+           }
+       }
+   ((ListControl)(object)processListComboBox).DisplayMember = "ProcessName";
+   }
+
+
+/////////////////////////////
+
+ if (processListComboBox.SelectedItem == null)
+ {
+     MessageBox.Show("Please select a process.");
+     return;
+ }
+
+ Process process = (Process)processListComboBox.SelectedItem;
+
+ string resourceName = "MAGIC.CHEATS.dll";
+ string dllPath = Path.Combine(Path.GetTempPath(), "CHEATS.dll");
+
+          
+ using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
+ {
+     if (stream == null)
+     {
+         MessageBox.Show("Embedded resource not found: " + resourceName);
+         return;
+     }
+
+     using FileStream destination = new FileStream(dllPath, FileMode.Create, FileAccess.Write);
+     stream.CopyTo(destination);
+ }
+
+ if (!File.Exists(dllPath))
+ {
+     MessageBox.Show("Failed error type (2344)");
+     return;
+ }
+
+
+ try
+ {
+     InjectDll(process.Id, dllPath);
+     MessageBox.Show("Injected into: " + process.ProcessName);
+ }
+ catch (Exception ex)
+ {
+     MessageBox.Show("Injection failed: " + ex.Message);
+ }
+
